@@ -124,7 +124,7 @@ The **base abstractions** (`crawlers/base/`) are fully public — they contain a
 - Supports multiple recipients (e.g. Gmail + web.de simultaneously)
 - HTML email with job table — title, company, city, score, tags
 - Configurable via `.env` — no code changes needed
-- Powered by Nodemailer + Gmail (App Password)
+- Powered by Nodemailer + Resend free tier API
 
 ---
 
