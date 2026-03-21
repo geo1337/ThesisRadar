@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Umgebungsvariablen
+.env
+
+# Crawler implementations (company-specific endpoints)
+crawlers/
+!crawlers/base/
+ 
+# Company assets
+assets/logos/
+ 
+
+# Datenbank-Cache
+geo_cache.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
