@@ -26,7 +26,7 @@ The goal is simple: **spend less time searching, more time applying to the right
 ---
 
 
-> 📸 **Screenshot**
+📸 **Screenshots**
 
 
 ![Dashboard](docs/Dashboard_table.png)
