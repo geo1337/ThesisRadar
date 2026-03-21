@@ -62,8 +62,7 @@ The goal is simple: **spend less time searching, more time applying to the right
 
 The concrete crawler implementations (`crawlers/*.js`) are excluded from this repository intentionally.
 
-Each crawler contains company-specific API endpoints, request structures and search parameters that were identified by inspecting the network  
-requests made during normal browser sessions on public career portals.
+Each crawler contains company-specific API endpoints, request structures and search parameters that were identified by inspecting the network requests made during normal browser sessions on public career portals.
 
 publish them would:
 
