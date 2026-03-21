@@ -238,7 +238,7 @@ User clicks "Start"
 | Express.js | HTTP server, REST API |
 | mssql / msnodesqlv8 | SQL Server connector (Windows Auth) |
 | dotenv | Environment configuration |
-| nodemailer | Email notifications via Gmail SMTP |
+| nodemailer | Email notifications via Resend SMTP |
 
 ### Frontend
 | Technology | Purpose |
