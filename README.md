@@ -27,6 +27,8 @@ The goal is simple: **spend less time searching, more time applying to the right
 
 
 > 📸 **Screenshot**
+
+
 ![Dashboard](docs/Dashboard_table.png)
 
 
