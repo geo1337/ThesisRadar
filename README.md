@@ -24,7 +24,26 @@ ThesisRadar was built out of that necessity. Instead of spending 30+ minutes eve
 The goal is simple: **spend less time searching, more time applying to the right positions.**
 
 ---
+## 📋 Table of Contents
 
+- [Motivation](#-motivation)
+- [Screenshots](#-screenshots)
+- [Why Crawlers Are Not Public](#-why-crawlers-are-not-public)
+- [Key Features](#-key-features)
+- [Use Cases](#-use-cases)
+- [Architecture](#-architecture)
+- [Tech Stack](#-tech-stack)
+- [Configuration](#-configuration)
+- [Database Schema](#-database-schema)
+- [Project Structure](#-project-structure)
+- [Scoring System](#-scoring-system)
+- [Automation](#-automation)
+- [Security](#-security)
+- [Legal & Compliance](#-legal--compliance)
+- [Ethical Considerations](#-ethical-considerations)
+- [Potential Improvements](#-potential-improvements)
+
+---
 
 📸 **Screenshots**
 
