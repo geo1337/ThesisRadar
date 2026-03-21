@@ -256,9 +256,9 @@ DB_SERVER=localhost\SQLEXPRESS
 DB_NAME=ThesisRadar
 
 # Email notifications
-MAIL_USER=your@gmail.com
-MAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
-MAIL_TO=your@gmail.com,your@web.de
+
+RESEND_API_KEY=....
+MAIL_TO=your@gmail.com,your@web.de etc
 MAIL_MIN_SCORE=4
 ```
 
