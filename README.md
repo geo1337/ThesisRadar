@@ -27,8 +27,8 @@ The goal is simple: **spend less time searching, more time applying to the right
 
 
 > 📸 **Screenshot**
-![Dashboard](docs/Dashboardtable.png)
-![Map View](docs/Dashboard_map.png)
+![Dashboard](docs/Dashboard_table.png)
+![Map View](docs/Dashboard_Map.png)
 
 ---
 
