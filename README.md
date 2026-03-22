@@ -17,11 +17,9 @@ The focus lies on **decision support**, not data collection!
 
 ## 🎯 Motivation
 
-The German job market for tech graduates has become increasingly competitive. Finding the right thesis position — one that actually aligns with your skills and interests — requires monitoring dozens of career pages simultaneously, often daily.
+I need to find a thesis position by the end of 2026. Instead of spending 30+ minutes every morning manually checking dozens of career pages, I built ThesisRadar to do it for me — automatically aggregating, scoring, and surfacing only the positions that actually match my interests. Less searching, more applying to the right things.
 
-ThesisRadar was built out of that necessity. Instead of spending 30+ minutes every morning clicking through career portals, the tool does it automatically and surfaces only what's actually relevant — scored, filtered, and ready to act on.
-
-The goal is simple: **spend less time searching, more time applying to the right positions.**
+The goal was simple: **spend less time searching, more time applying to the right positions.**
 
 ---
 ## 📋 Table of Contents
