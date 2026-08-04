@@ -27,8 +27,10 @@ The goal is simple: **spend less time searching, more time applying to the right
 
 
 > 📸 **Screenshot**
-![Dashboard](docs/Dashboardtable.png)
-![Map View](docs/Dashboard_map.png)
+![Dashboard](docs/Dashboard_table.png)
+![Map view](docs/Dashboard_Map.png)
+![E-Mail notification](docs/Example_Mail.jpeg)
+![Local LLM-scoring](docs/Example_Score.png)
 
 ---
 
