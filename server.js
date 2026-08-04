@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
+const multer  = require('multer');
 
 const BoschCrawler         = require('./crawlers/BoschCrawler');
 const MercedesCrawler      = require('./crawlers/MercedesCrawler');
@@ -23,12 +24,20 @@ const ArbeitsagenturCrawler = require('./crawlers/ArbeitsagenturCrawler');
 
 const DaimlerTruckCrawler  = require('./crawlers/DaimlerTruckCrawler');
 const SiemensCrawler       = require('./crawlers/SiemensCrawler');
+const StihlCrawler         = require('./crawlers/StihlCrawler');
 const { connect, insertJobs, loadHistory } = require('./core/DbExporter');
 const { geocodeAllCities, getAllCoords }   = require('./core/GeoCache');
 const sql = require('mssql/msnodesqlv8');
 const { sendJobAlert } = require('./core/Mailer');
+const ResumeStore = require('./core/ResumeStore');
+const { llmScoreJob } = require('./core/LlmScoreEngine');
 const app  = express();
 const PORT = process.env.PORT || 3000;
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits:  { fileSize: 10 * 1024 * 1024 }
+});
 
 app.use(cors());
 app.use(express.json());
@@ -54,6 +63,7 @@ const CRAWLERS = [
    
     new DaimlerTruckCrawler(),
     new SiemensCrawler(),
+    new StihlCrawler(),
 ];
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -75,7 +85,10 @@ app.get('/api/stream', async (req, res) => {
     let totalJobs = 0;
 
     try {
-        const history = await loadHistory();
+        const history    = await loadHistory();
+        const resumeText = ResumeStore.loadResumeText();
+        if (resumeText) console.log(`  🧠 LLM-Rescoring aktiv (${resumeText.length} Zeichen Lebenslauf, Modell: ${process.env.OLLAMA_MODEL || 'qwen3.5:9b'})`);
+
         for (const crawler of CRAWLERS) {
 
             send('status', { company: crawler.getName(), state: 'loading' });
@@ -93,10 +106,22 @@ app.get('/api/stream', async (req, res) => {
 
             const relevant = jobs.filter(j => j.score.relevant);
             const newJobs  = relevant
-                .filter(j => !history.some(h => h.title === j.title && h.url === j.url))
-                .sort((a, b) => b.score.score - a.score.score);
+                .filter(j => !history.some(h => h.title === j.title && h.url === j.url));
 
             console.log(`  📊 ${crawler.getName()}: ${jobs.length} total → ${relevant.length} relevant → ${newJobs.length} neu`);
+
+            if (resumeText) {
+                for (const job of newJobs) {
+                    const llmScore = await llmScoreJob(job, resumeText);
+                    if (llmScore) {
+                        job.score = llmScore;
+                        console.log(`  🧠 "${job.title}" → Score ${llmScore.score} [${llmScore.categories.join(', ')}] — ${llmScore.reasoning}`);
+                    } else {
+                        console.warn(`  ⚠ Fallback auf Keyword-Score für "${job.title}"`);
+                    }
+                }
+            }
+            newJobs.sort((a, b) => b.score.score - a.score.score);
 
             for (const job of newJobs) {
                 await new Promise(r => setTimeout(r, 800));
@@ -105,6 +130,7 @@ app.get('/api/stream', async (req, res) => {
                     score:      job.score.score,
                     tags:       job.score.categories,
                     confidence: job.score.confidence,
+                    reasoning:  job.score.reasoning || null,
                     source:     job.source || null,
                     isNew:      true
                 });
@@ -170,6 +196,45 @@ app.get('/api/companies', (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════
 app.get('/api/geocache', (req, res) => {
     res.json(getAllCoords());
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// GET /api/resume — Status des hochgeladenen Lebenslaufs
+// ══════════════════════════════════════════════════════════════════════════
+app.get('/api/resume', (req, res) => {
+    res.json(ResumeStore.getStatus());
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// POST /api/resume — Lebenslauf (PDF) hochladen und parsen
+// ══════════════════════════════════════════════════════════════════════════
+app.post('/api/resume', upload.single('resume'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ success: false, error: 'Keine Datei erhalten (Feld "resume")' });
+    }
+    if (req.file.mimetype !== 'application/pdf') {
+        return res.status(400).json({ success: false, error: 'Nur PDF-Dateien werden unterstützt' });
+    }
+
+    try {
+        const text = await ResumeStore.extractPdfText(req.file.buffer);
+        if (text.length < 50) {
+            return res.status(400).json({ success: false, error: 'PDF enthält zu wenig extrahierbaren Text (Scan ohne OCR?)' });
+        }
+        ResumeStore.saveResumeText(text);
+        res.json({ success: true, ...ResumeStore.getStatus() });
+    } catch (err) {
+        console.error('Resume-Upload Fehler:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// DELETE /api/resume — Lebenslauf entfernen (zurück auf reines Keyword-Scoring)
+// ══════════════════════════════════════════════════════════════════════════
+app.delete('/api/resume', (req, res) => {
+    ResumeStore.clearResume();
+    res.json({ success: true });
 });
 
 // ══════════════════════════════════════════════════════════════════════════

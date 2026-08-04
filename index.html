@@ -130,6 +130,94 @@
         color: #fff;
       }
 
+      .btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      .btn-primary:disabled:hover {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .resume-badge {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--border2);
+        display: inline-block;
+      }
+
+      .resume-badge.active {
+        background: var(--green, #2ecc71);
+        box-shadow: 0 0 6px var(--green, #2ecc71);
+      }
+
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+
+      .modal-overlay.open {
+        display: flex;
+      }
+
+      .modal-box {
+        background: var(--card, var(--bg));
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        padding: 24px;
+        width: 440px;
+        max-width: 90vw;
+      }
+
+      .modal-box h3 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        color: var(--text);
+      }
+
+      .modal-box p {
+        margin: 0 0 16px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .resume-status {
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 16px;
+        font-family: var(--mono);
+      }
+
+      .resume-status.uploaded {
+        color: var(--text);
+        border-color: var(--accent);
+      }
+
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 16px;
+      }
+
+      #resumeFileInput {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text);
+        width: 100%;
+      }
+
       /* ── STATS BAR ── */
       .stats-bar {
         display: flex;
@@ -1071,11 +1159,27 @@
         ThesisRadar
       </div>
       <div class="header-actions">
+        <button class="btn" onclick="openResumeModal()"><span class="resume-badge" id="resumeBadge"></span>&nbsp;<i class="fa-solid fa-file-pdf"></i>Lebenslauf</button>
         <button class="btn" onclick="resetSeen()"><i class="fa-solid fa-circle-dot"></i>Alle als ungelesen</button>
         <button class="btn" onclick="exportCSV()"><i class="fa-solid fa-download"></i> CSV Export</button>
-        <button class="btn btn-primary" onclick="startCrawl()"><i class="fa-solid fa-play"></i>Starten</button>
+        <button class="btn btn-primary" onclick="startCrawl()" id="startCrawlBtn" disabled title="Zuerst Lebenslauf hochladen"><i class="fa-solid fa-play"></i>Starten</button>
       </div>
     </header>
+
+    <!-- RESUME MODAL -->
+    <div class="modal-overlay" id="resumeModal">
+      <div class="modal-box">
+        <h3>Lebenslauf für LLM-Scoring</h3>
+        <p>Ein hochgeladener Lebenslauf wird lokal via Ollama gegen jede neu gefundene Stelle abgeglichen — der Score basiert dann auf der fachlichen Passung statt auf statischen Keywords. Ohne Lebenslauf läuft das bisherige Keyword-Scoring weiter.</p>
+        <div class="resume-status" id="resumeStatus">Lädt…</div>
+        <input type="file" id="resumeFileInput" accept="application/pdf" />
+        <div class="modal-actions">
+          <button class="btn" onclick="removeResume()" id="resumeRemoveBtn" style="display:none">Entfernen</button>
+          <button class="btn" onclick="closeResumeModal()">Schließen</button>
+          <button class="btn btn-primary" onclick="uploadResume()">Hochladen</button>
+        </div>
+      </div>
+    </div>
 
     <!-- STATS -->
     <div class="stats-bar" id="statsBar">
@@ -1141,6 +1245,7 @@
         <span class="filter-label">Sortieren</span>
         <select id="sortSelect" onchange="applyFilters()">
           <option value="score_desc">Score ↓</option>
+          <option value="score_asc">Score ↑</option>
           <option value="date_desc">Datum ↓</option>
           <option value="date_asc">Datum ↑</option>
           <option value="title_asc">Titel A–Z</option>
@@ -1231,6 +1336,7 @@
 
     <script>
       const API = 'http://localhost:3000';
+      const SQL_INT_MAX = 2147483647; // Grenze der SQL Server INT-Spalte "id" — Fake-IDs (Date.now()) liegen darüber
 
       // ── STATE ──────────────────────────────────────────────────────────────────
 
@@ -1264,6 +1370,7 @@
         await loadGeoCache();
         await loadCompanies();
         await loadHistory();
+        await refreshResumeStatus();
         updateStats();
         document.getElementById('statFav').textContent = state.jobs.filter((j) => j.favorite).length;
         document.getElementById('footerTime').textContent = 'Zuletzt: ' + new Date().toLocaleString('de-DE');
@@ -1423,7 +1530,7 @@
         });
 
         // ── done Event: alles fertig
-        es.addEventListener('done', (e) => {
+        es.addEventListener('done', async (e) => {
           const d = JSON.parse(e.data);
           es.close();
           state.isCrawling = false;
@@ -1435,6 +1542,12 @@
           const t = new Date().toLocaleTimeString('de-DE', {hour: '2-digit', minute: '2-digit'});
           document.getElementById('statLastRun').textContent = t;
           document.getElementById('footerTime').textContent = `Letzter Run: ${t} · ${d.newJobs} neue Jobs`;
+
+          // Ersetzt die client-seitigen Fake-IDs (Date.now()) der live gestreamten Jobs
+          // durch die echten DB-IDs — sonst laufen PATCH-Requests (seen/favorite/applied)
+          // auf INT-Overflow bei SQL Server, weil Date.now() den int-Bereich sprengt.
+          await loadHistory();
+          updateStats();
         });
 
         // ── error Event
@@ -1543,11 +1656,19 @@
 
         const [field, dir] = sort.split('_');
         jobs.sort((a, b) => {
-          let va = a[field],
-            vb = b[field];
+          let va = a[field];
+          let vb = b[field];
+
+          if (va === vb) return 0;
+          if (va === undefined || va === null) return dir === 'desc' ? 1 : -1;
+          if (vb === undefined || vb === null) return dir === 'desc' ? -1 : 1;
+
           if (typeof va === 'string') va = va.toLowerCase();
           if (typeof vb === 'string') vb = vb.toLowerCase();
-          return dir === 'desc' ? (va < vb ? 1 : -1) : va > vb ? 1 : -1;
+
+          return dir === 'desc'
+            ? va < vb ? 1 : -1
+            : va > vb ? 1 : -1;
         });
 
         const totalPages = Math.ceil(jobs.length / state.perPage);
@@ -1618,6 +1739,8 @@
             return 'assets/logos/audi_logo.jpg';
           case 'Siemens':
             return 'assets/logos/Siemens-logo.png';
+          case 'Stihl':
+            return 'assets/logos/Stihl_Logo.svg.webp';
           default:
             return null;
         }
@@ -1687,6 +1810,11 @@
         job.favorite = newValue;
         btn.classList.toggle('active', newValue);
 
+        if (job.id > SQL_INT_MAX) {
+          console.warn('Job noch nicht in DB gespeichert (Crawl läuft) — warte bis der Crawl fertig ist.');
+          return;
+        }
+
         fetch(`${API}/api/jobs/${id}`, {
           method: 'PATCH',
           headers: {'Content-Type': 'application/json'},
@@ -1754,6 +1882,11 @@
         btn.classList.toggle('active', newValue);
         row.classList.toggle('seen', newValue);
 
+        if (job.id > SQL_INT_MAX) {
+          console.warn('Job noch nicht in DB gespeichert (Crawl läuft) — warte bis der Crawl fertig ist.');
+          return;
+        }
+
         fetch(`${API}/api/jobs/${id}`, {
           method: 'PATCH',
           headers: {'Content-Type': 'application/json'},
@@ -1772,6 +1905,77 @@
         document.getElementById('statRelevant').textContent = state.jobs.filter((j) => (j.score ?? 0) >= 2).length;
         document.getElementById('statFav').textContent      = state.jobs.filter((j) => j.favorite).length;
         document.getElementById('statSeen').textContent     = state.jobs.filter((j) => j.seen).length;
+      }
+
+      // ── LEBENSLAUF / LLM-SCORING ─────────────────────────────────────────────────
+
+      async function refreshResumeStatus() {
+        const badge  = document.getElementById('resumeBadge');
+        const status = document.getElementById('resumeStatus');
+        const removeBtn = document.getElementById('resumeRemoveBtn');
+        const startBtn  = document.getElementById('startCrawlBtn');
+        try {
+          const res  = await fetch(`${API}/api/resume`);
+          const data = await res.json();
+          if (data.uploaded) {
+            badge.classList.add('active');
+            status.classList.add('uploaded');
+            status.textContent = `✓ Lebenslauf aktiv · ${data.chars} Zeichen · aktualisiert ${new Date(data.updatedAt).toLocaleString('de-DE')}`;
+            removeBtn.style.display = '';
+            startBtn.disabled = false;
+            startBtn.title = '';
+          } else {
+            badge.classList.remove('active');
+            status.classList.remove('uploaded');
+            status.textContent = 'Kein Lebenslauf hochgeladen — bitte zuerst hochladen';
+            removeBtn.style.display = 'none';
+            startBtn.disabled = true;
+            startBtn.title = 'Zuerst Lebenslauf hochladen';
+          }
+        } catch {
+          status.textContent = '⚠ Server nicht erreichbar';
+        }
+      }
+
+      function openResumeModal() {
+        document.getElementById('resumeModal').classList.add('open');
+        refreshResumeStatus();
+      }
+
+      function closeResumeModal() {
+        document.getElementById('resumeModal').classList.remove('open');
+      }
+
+      async function uploadResume() {
+        const input = document.getElementById('resumeFileInput');
+        const file  = input.files[0];
+        if (!file) return alert('Bitte zuerst eine PDF-Datei auswählen.');
+
+        const formData = new FormData();
+        formData.append('resume', file);
+
+        const status = document.getElementById('resumeStatus');
+        status.textContent = '⏳ Lädt hoch und extrahiert Text…';
+
+        try {
+          const res  = await fetch(`${API}/api/resume`, {method: 'POST', body: formData});
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Unbekannter Fehler');
+          input.value = '';
+          await refreshResumeStatus();
+        } catch (err) {
+          status.textContent = `⚠ Fehler: ${err.message}`;
+        }
+      }
+
+      async function removeResume() {
+        if (!confirm('Lebenslauf entfernen und zurück auf Keyword-Scoring wechseln?')) return;
+        try {
+          await fetch(`${API}/api/resume`, {method: 'DELETE'});
+          await refreshResumeStatus();
+        } catch {
+          alert('⚠ Server nicht erreichbar');
+        }
       }
 
       // ── CSV EXPORT ─────────────────────────────────────────────────────────────
@@ -2125,6 +2329,11 @@
         job.applied = !job.applied;
         btn.classList.toggle('active', job.applied);
         btn.title = job.applied ? 'Als beworben markiert' : 'Als beworben markieren';
+
+        if (job.id > SQL_INT_MAX) {
+          console.warn('Job noch nicht in DB gespeichert (Crawl läuft) — warte bis der Crawl fertig ist.');
+          return;
+        }
 
         try {
           await fetch(`${API}/api/jobs/${jobId}`, {

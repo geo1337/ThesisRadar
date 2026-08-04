@@ -4,8 +4,12 @@
  * Start: node daily_crawler.js
  */
 
+require('dotenv').config();
+
 const {exec} = require('child_process');
 const {initCSV, appendCSV, loadHistory, CSV_FILE} = require('./core/CsvExporter');
+const ResumeStore = require('./core/ResumeStore');
+const {llmScoreJob} = require('./core/LlmScoreEngine');
 
 const BoschCrawler = require('./crawlers/BoschCrawler');
 const MercedesCrawler = require('./crawlers/MercedesCrawler');
@@ -26,6 +30,7 @@ const ArbeitsagenturCrawler = require('./crawlers/ArbeitsagenturCrawler');
 
 const DaimlerTruckCrawler = require('./crawlers/DaimlerTruckCrawler');
 const SiemensCrawler = require('./crawlers/SiemensCrawler');
+const StihlCrawler = require('./crawlers/StihlCrawler');
 
 const CRAWLERS = [
   new BoschCrawler(),
@@ -47,6 +52,7 @@ const CRAWLERS = [
 
   new DaimlerTruckCrawler(),
   new SiemensCrawler(),
+  new StihlCrawler(),
 ];
 
 // ── Terminal-Ausgabe ───────────────────────────────────────────────────────
@@ -96,13 +102,29 @@ async function main() {
   const allNew = [];
   const summary = [];
 
+  const resumeText = ResumeStore.loadResumeText();
+  if (resumeText) console.log(`🧠 LLM-Rescoring aktiv (${resumeText.length} Zeichen Lebenslauf, Modell: ${process.env.OLLAMA_MODEL || 'qwen3.5:9b'})\n`);
+
   for (const crawler of CRAWLERS) {
     process.stdout.write(`\n🔍 Lade ${crawler.getName()} … `);
     const jobs = await crawler.fetchAll();
     console.log(`${jobs.length} Treffer`);
 
     const relevant = jobs.filter((j) => j.score.relevant);
-    const newJobs = relevant.filter((j) => !history.some((h) => h.title === j.title && h.url === j.url)).sort((a, b) => b.score.score - a.score.score);
+    const newJobs = relevant.filter((j) => !history.some((h) => h.title === j.title && h.url === j.url));
+
+    if (resumeText) {
+      for (const job of newJobs) {
+        const llmScore = await llmScoreJob(job, resumeText);
+        if (llmScore) {
+          job.score = llmScore;
+          console.log(`  🧠 "${job.title}" → Score ${llmScore.score} [${llmScore.categories.join(', ')}] — ${llmScore.reasoning}`);
+        } else {
+          console.warn(`  ⚠ Fallback auf Keyword-Score für "${job.title}"`);
+        }
+      }
+    }
+    newJobs.sort((a, b) => b.score.score - a.score.score);
 
     await printResults(crawler.getName().toUpperCase(), newJobs, jobs.length, relevant.length);
     allNew.push(...newJobs);

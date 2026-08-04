@@ -15,6 +15,9 @@ assets/logos/
 # Datenbank-Cache
 geo_cache.json
 
+# Lebenslauf (personenbezogene Daten)
+data/resume.txt
+
 # Logs
 *.log
 npm-debug.log*

@@ -17,42 +17,18 @@ The focus lies on **decision support**, not data collection!
 
 ## 🎯 Motivation
 
-I need to find a thesis position by the end of 2026. Instead of spending 30+ minutes every morning manually checking dozens of career pages, I built ThesisRadar to do it for me — automatically aggregating, scoring, and surfacing only the positions that actually match my interests. Less searching, more applying to the right things.
+The German job market for tech graduates has become increasingly competitive. Finding the right thesis position — one that actually aligns with your skills and interests — requires monitoring dozens of career pages simultaneously, often daily.
 
-The goal was simple: **spend less time searching, more time applying to the right positions.**
+ThesisRadar was built out of that necessity. Instead of spending 30+ minutes every morning clicking through career portals, the tool does it automatically and surfaces only what's actually relevant — scored, filtered, and ready to act on.
 
----
-## 📋 Table of Contents
-
-- [Motivation](#-motivation)
-- [Screenshots](#-screenshots)
-- [Why Crawlers Are Not Public](#-why-crawlers-are-not-public)
-- [Key Features](#-key-features)
-- [Use Cases](#-use-cases)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Configuration](#-configuration)
-- [Database Schema](#-database-schema)
-- [Project Structure](#-project-structure)
-- [Scoring System](#-scoring-system)
-- [Automation](#-automation)
-- [Security](#-security)
-- [Legal & Compliance](#-legal--compliance)
-- [Ethical Considerations](#-ethical-considerations)
-- [Potential Improvements](#-potential-improvements)
+The goal is simple: **spend less time searching, more time applying to the right positions.**
 
 ---
 
-📸 **Screenshots**
 
-
-![Dashboard](docs/Dashboard_table.png)
-
-
-![Map View](docs/Dashboard_Map.png)
-
-
-![Email](docs/Example_Mail.jpeg)
+> 📸 **Screenshot**
+![Dashboard](docs/Dashboardtable.png)
+![Map View](docs/Dashboard_map.png)
 
 ---
 
@@ -60,9 +36,7 @@ The goal was simple: **spend less time searching, more time applying to the righ
 
 The concrete crawler implementations (`crawlers/*.js`) are excluded from this repository intentionally.
 
-Each crawler contains company-specific API endpoints, request structures and search parameters that were identified by inspecting the network requests made during normal browser sessions on public career portals.
-
-publish them would:
+Each crawler contains company-specific API endpoints, request structures, and search parameters that were reverse-engineered from public career portals for personal use. Publishing them would:
 
 - Potentially encourage bulk usage against company infrastructure
 - Go beyond the intended personal research scope of this project
@@ -88,9 +62,21 @@ The **base abstractions** (`crawlers/base/`) are fully public — they contain a
 ---
 
 ### 📊 Smart Scoring System
+- **Two-stage scoring**: fast keyword prefilter decides tech-relevance, optional local LLM rescoring decides the actual fit
 - Keyword-based scoring across 6 tech categories (AI, IoT, Security, Software, Frontend, Automotive)
 - Visual score indicators: 🟢 high fit (≥4) · 🟡 medium (2–3) · 🔴 low (0–1)
 - Fully customizable scoring logic in `core/ScoreEngine.js`
+
+---
+
+### 🧠 Resume-Based LLM Scoring (local via Ollama)
+- Upload your CV as a PDF — parsed locally, never leaves your machine
+- Every new, keyword-relevant job gets rescored against your actual resume by a **local** LLM (via [Ollama](https://ollama.com)) — no cloud API, no external calls
+- Score reflects concrete, named skill overlap between the posting and your CV, not just generic "tech industry" vibes
+- Automatic fallback to keyword scoring if Ollama is unreachable, times out, or returns malformed output — a crawl never breaks because of it
+- "Starten" is disabled until a resume is uploaded, so you never accidentally run a crawl on pure keyword-guessing
+- Full transparency: every LLM decision (score, tags, one-line reasoning) is logged to the console; `LLM_DEBUG=1` prints the raw model response for every job
+- Configurable model/host/timeout via `.env` — defaults to `qwen3.5:9b`, tested on an RTX 3070 8GB
 
 ---
 
@@ -143,7 +129,7 @@ The **base abstractions** (`crawlers/base/`) are fully public — they contain a
 - Supports multiple recipients (e.g. Gmail + web.de simultaneously)
 - HTML email with job table — title, company, city, score, tags
 - Configurable via `.env` — no code changes needed
-- Powered by Nodemailer + Resend free tier API
+- Powered by [Resend](https://resend.com)
 
 ---
 
@@ -182,18 +168,21 @@ After each scheduled crawl run, ThesisRadar automatically sends an email summary
 ┌──────────────────────────▼──────────────────────────────────────┐
 │                     server.js  (Express)                         │
 │                                                                  │
-│  GET  /api/stream     SSE — live job streaming                  │
-│  GET  /api/history    All jobs from DB                          │
-│  GET  /api/companies  Active crawler list                       │
-│  GET  /api/geocache   City coordinates                          │
-│  PATCH /api/jobs/:id  Update seen / favorite / applied          │
+│  GET  /api/stream      SSE — live job streaming                 │
+│  GET  /api/history     All jobs from DB                         │
+│  GET  /api/companies   Active crawler list                      │
+│  GET  /api/geocache    City coordinates                         │
+│  PATCH /api/jobs/:id   Update seen / favorite / applied         │
+│  GET  /api/resume      Resume upload status                     │
+│  POST /api/resume      Upload + parse CV (PDF)                  │
+│  DELETE /api/resume    Remove CV → back to pure keyword scoring │
 │                                                                  │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │                    Crawler Layer                          │  │
 │  │  Bosch · Mercedes · Porsche · Trumpf · Fraunhofer · SAP  │  │
 │  │  Siemens · Audi · Adesso · Bechtle · Festo               │  │
 │  │  Exxeta · Vector · StudySmarter · Arbeitsagentur          │  │
-│  │  · DaimlerTruck · MHP (+17 total)                     │  │
+│  │  · DaimlerTruck · MHP · Stihl (+18 total)              │  │
 │  └──────────────────────┬────────────────────────────────────┘  │
 │                         │  extends                               │
 │  ┌──────────────────────▼────────────────────────────────────┐  │
@@ -204,21 +193,25 @@ After each scheduled crawl run, ThesisRadar automatically sends an email summary
 │                         │                                        │
 │  ┌──────────────────────▼────────────────────────────────────┐  │
 │  │                     Core Modules                           │  │
-│  │    ScoreEngine · DbExporter · CsvExporter · GeoCache · Mailer  │  │
-│  └──────────────────────┬────────────────────────────────────┘  │
-└─────────────────────────┼────────────────────────────────────────┘
-                          │
-┌─────────────────────────▼────────────────────────────────────────┐
-│              SQL Server  (local, Windows Authentication)          │
-│   jobs: title · company · city · url · score · tags              │
-│          seen · favorite · applied · applied_at · created_at     │
-└───────────────────────────────────────────────────────────────────┘
+│  │  ScoreEngine · LlmScoreEngine · ResumeStore · DbExporter   │  │
+│  │  CsvExporter · GeoCache · Mailer                            │  │
+│  └──────────────────────┬────────────────────────────┬────────┘  │
+└─────────────────────────┼─────────────────────────────┼───────────┘
+                          │                             │ HTTP 127.0.0.1:11434
+┌─────────────────────────▼────────────────────────┐   ┌▼──────────────────────┐
+│   SQL Server  (local, Windows Authentication)     │   │  Ollama (local LLM)   │
+│   jobs: title · company · city · url · score ·    │   │  qwen3.5:9b — runs     │
+│         tags · seen · favorite · applied ·        │   │  entirely on your GPU  │
+│         applied_at · created_at                   │   │  (no cloud API)        │
+└────────────────────────────────────────────────────┘   └────────────────────────┘
                           │
 ┌─────────────────────────▼────────────────────────────────────────┐
 │            External Career APIs  (HTTPS, outbound only)           │
 │   Beesite REST · Workday REST · SAP SuccessFactors                │
 └───────────────────────────────────────────────────────────────────┘
 ```
+
+`data/resume.txt` (the parsed CV text) stays local — it is only ever read by `LlmScoreEngine.js` and sent to the loopback Ollama endpoint above, never to the crawlers or any external API.
 
 ### Crawl Data Flow
 
@@ -234,6 +227,8 @@ User clicks "Start"
             ├─► keyword scoring + dedup
             │
             ├─► for each new job:
+            │       IF resume uploaded → llmScoreJob() rescores via Ollama
+            │           (falls back to keyword score on timeout/error)
             │       sleep(800ms)
             │       send('job', {...})    →  row appears in table
             │
@@ -257,7 +252,10 @@ User clicks "Start"
 | Express.js | HTTP server, REST API |
 | mssql / msnodesqlv8 | SQL Server connector (Windows Auth) |
 | dotenv | Environment configuration |
-| nodemailer | Email notifications via Resend SMTP |
+| Resend | Email notifications |
+| [Ollama](https://ollama.com) | Local LLM runtime — resume-based scoring, no cloud API |
+| multer | PDF upload handling (memory storage, 10MB limit) |
+| pdf-parse | Extracts text from the uploaded CV |
 
 ### Frontend
 | Technology | Purpose |
@@ -277,16 +275,90 @@ all dependencies can be looked up inside the package json file
 **`.env`** in project root:
 ```env
 PORT=3000
-DB_DRIVER=SQL Server
+DB_DRIVER=ODBC Driver 17 for SQL Server
 DB_SERVER=localhost\SQLEXPRESS
 DB_NAME=ThesisRadar
 
-# Email notifications
+# Email notifications (Resend)
+RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
+MAIL_TO=your@gmail.com,your@web.de
 
-RESEND_API_KEY=....
-MAIL_TO=your@gmail.com,your@web.de etc
-MAIL_MIN_SCORE=4
+# LLM-Rescoring (core/LlmScoreEngine.js) — only active once a resume is uploaded
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3.5:9b
+OLLAMA_TIMEOUT_MS=45000
+LLM_DEBUG=0          # set to 1 to log the raw model response for every job
 ```
+
+---
+
+## 🧠 Local LLM Setup (Ollama)
+
+Resume-based scoring is fully optional and runs entirely on your own machine — no API key, no cloud
+service, no data leaving your PC. Here's how to get it running.
+
+### 1. Install Ollama
+
+Download the installer for your OS from **[ollama.com/download](https://ollama.com/download)** and run it.
+
+On Windows you can alternatively install it via winget:
+```powershell
+winget install Ollama.Ollama
+```
+
+This installs the `ollama` CLI and a background service listening on `http://localhost:11434`.
+
+### 2. Pull a model
+
+```powershell
+ollama pull qwen3.5:9b
+```
+
+`qwen3.5:9b` is the default model this project is configured for and was tested on an **RTX 3070 (8GB
+VRAM)** — it fits comfortably in 4-bit quantization with headroom to spare. As a rule of thumb for 8GB
+cards: stick to 7-9B models. Once the pull finishes, `ollama run qwen3.5:9b` drops you into an interactive
+chat — that's just a convenience REPL, `Ctrl+D` to exit. It also confirms the background service is
+reachable.
+
+### 3. Verify it's reachable
+
+```powershell
+curl http://localhost:11434/api/tags
+```
+
+Should return JSON listing your pulled models. If this fails, the Ollama service isn't running — check
+Windows Services / Task Manager, or just run `ollama serve` manually.
+
+### 4. Configure `.env` (optional — defaults already match)
+
+```env
+OLLAMA_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3.5:9b
+OLLAMA_TIMEOUT_MS=45000
+```
+
+Swap `OLLAMA_MODEL` for any other pulled model (e.g. a larger `qwen3.5:32b` if you have the VRAM, or a
+smaller `qwen3.5:3b` for faster/weaker hardware). `OLLAMA_TIMEOUT_MS` needs to be generous enough for a **cold
+model load** — the first call after starting Ollama has to load the full model into VRAM, which can take
+20-30s even on a fast GPU; every call after that is typically sub-second.
+
+### 5. Upload your resume
+
+Start the app (`node server.js`), open the dashboard, click **"Lebenslauf"** in the header, and upload your
+CV as a PDF. The "Starten" button stays disabled until this is done — once uploaded, every future crawl
+rescores new jobs against it automatically (`core/LlmScoreEngine.js`).
+
+### How the fallback works
+
+If Ollama isn't running, times out, or returns something the app can't parse, the affected job silently
+keeps its Stage 1 keyword score instead — logged as a `⚠ Fallback auf Keyword-Score` warning in the
+console. A crawl never fails because of the LLM step.
+
+### Debugging bad scores
+
+Every LLM decision is logged: `🧠 "<title>" → Score X [tags] — reasoning`. If a score looks wrong, check
+that line first. For the full raw model response on every job (useful when tuning the prompt in
+`core/LlmScoreEngine.js`), set `LLM_DEBUG=1` in `.env`.
 
 ---
 
@@ -329,11 +401,16 @@ thesis-radar/
 ├── package.json
 │
 ├── core/
-│   ├── ScoreEngine.js           ← Keyword scoring logic
+│   ├── ScoreEngine.js           ← Keyword scoring logic (relevance prefilter)
+│   ├── LlmScoreEngine.js        ← Ollama call — resume-based rescoring + fallback
+│   ├── ResumeStore.js           ← PDF parsing, save/load data/resume.txt
 │   ├── CsvExporter.js           ← CSV read/write with BOM
 │   ├── DbExporter.js            ← SQL Server: connect/insert/load/update
 │   ├── GeoCache.js              ← City coordinate caching
-│   └── Mailer.js                ← Email notifications (Nodemailer + Gmail)
+│   └── Mailer.js                ← Email notifications (Resend)
+│
+├── data/
+│   └── resume.txt               ← Parsed CV text (gitignored, personal data)
 │
 ├── crawlers/
 │   ├── base/
@@ -346,7 +423,8 @@ thesis-radar/
 │   ├── PorscheCrawler.js        
 │   ├── TrumpfCrawler.js         
 │   ├── FraunhoferCrawler.js     
-│   └── ... 14 more
+│   ├── StihlCrawler.js          ← full jobDescription available, no HTML scraping needed
+│   └── ... 12 more
 │
 ├── assets/logos/                ← Company logos (PNG/SVG)
 
@@ -358,6 +436,11 @@ thesis-radar/
 
 ## 📊 Scoring System
 
+Scoring happens in two stages:
+
+### Stage 1 — Keyword prefilter (always runs, `core/ScoreEngine.js`)
+Cheap, instant, decides whether a job is tech-relevant at all before it's ever shown or rescored.
+
 | Category | Example Keywords | Score |
 |----------|-----------------|-------|
 | AI / ML | ai, machine learning, llm, nlp, neural | **+3** |
@@ -368,6 +451,13 @@ thesis-radar/
 | Automotive | adas, autosar, batterie, elektro | **+1** |
 
 Fully customizable in `core/ScoreEngine.js`.
+
+### Stage 2 — LLM rescoring (optional, `core/LlmScoreEngine.js`)
+If a resume is uploaded, every job that survived Stage 1 gets rescored by a local LLM against the actual CV
+content — title, category, org and level are sent, the LLM returns a 0-10 score, 1-3 tags and a one-line
+reasoning. This replaces the generic keyword score with a personalized one. See [🧠 Local LLM Setup](#-local-llm-setup-ollama) below.
+
+If Stage 2 is skipped (no resume) or fails (Ollama down/timeout/bad output), the Stage 1 keyword score is used as-is — Stage 2 never blocks a crawl.
 
 ---
 
@@ -390,6 +480,10 @@ Trigger:    Daily, 08:00
 - All database queries use **parameterized statements** — no SQL injection risk
 - 5MB response body limit + 15s timeout in all crawlers
 - No authentication required — purely local tool
+- **Resume handling**: uploaded PDF is parsed in-memory, the extracted text is written only to
+  `data/resume.txt` (gitignored) and sent only to the local Ollama endpoint (`127.0.0.1:11434`) — it is
+  never stored in the database, never included in email alerts, and never sent to any crawler or external API
+- Only PDF uploads are accepted (`multer` + MIME-type check), capped at 10MB
 
 ---
 
@@ -398,7 +492,8 @@ Trigger:    Daily, 08:00
 This project is intended solely for personal research and job discovery purposes.
 
 - Only **publicly accessible data** is processed — no login bypass
-- **No personal data** is collected or stored → GDPR not applicable
+- The only personal data the tool handles is your own, voluntarily uploaded resume (for local LLM scoring)
+  — it stays on your machine and is never transmitted anywhere except to your own local Ollama instance
 - **No technical safeguards** (CAPTCHA, login systems) are bypassed → § 202a StGB not applicable
 - Requests are performed at very low frequency, comparable to normal browsing behavior
 - No data is redistributed, published, or commercialized
@@ -420,7 +515,10 @@ This project follows a minimal-impact approach:
 
 ## 💡 Potential Improvements
 
-- NLP-based semantic scoring (beyond keyword matching)
+- Fetch full job descriptions for the remaining crawlers where the source API/detail page provides them
+  (Bechtle, Vector and Stihl already pass a real `description` to the LLM — most others only capture
+  title/category/org and would need an extra per-job request)
+- Batch rescoring of the full job history against a newly uploaded resume, instead of only new jobs going forward
 - Deadline tracking per job (manual date input with visual warning)
 - Keyboard shortcuts for faster job triage (`F` favorite, `S` seen, `A` applied)
 - Distance filter on map ("jobs within 50km of my location")

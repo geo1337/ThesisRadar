@@ -16,6 +16,8 @@
     "express": "^5.2.1",
     "msnodesqlv8": "^5.1.5",
     "mssql": "^12.2.1",
+    "multer": "^2.2.0",
+    "pdf-parse": "^2.4.5",
     "resend": "^6.9.4"
   }
 }
