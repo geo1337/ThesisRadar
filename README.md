@@ -58,6 +58,7 @@ The **base abstractions** (`crawlers/base/`) are fully public — they contain a
 - Deduplication via URL and ID — no duplicate entries
 - Lightweight request strategy (~20 requests/day total)
 - Per-crawler timeout (15s) and body size limit (5MB)
+- Rolling date filter — only postings from the current year and the year before are kept (`core/DateFilter.js`); stale listings are dropped automatically, no hardcoded year to go stale itself
 
 > The tool only accesses data that is also loaded during a normal browser session.
 
@@ -79,6 +80,32 @@ The **base abstractions** (`crawlers/base/`) are fully public — they contain a
 - "Starten" is disabled until a resume is uploaded, so you never accidentally run a crawl on pure keyword-guessing
 - Full transparency: every LLM decision (score, tags, one-line reasoning) is logged to the console; `LLM_DEBUG=1` prints the raw model response for every job
 - Configurable model/host/timeout via `.env` — defaults to `qwen3.5:9b`, tested on an RTX 3070 8GB
+
+---
+
+### 🎛️ Dynamic Keyword Scoring
+- Set your own Stage-1 relevance keywords directly from the dashboard header — comma-separated, replaces the fixed 7-category system entirely once applied
+- Strict allowlist of ~54 vetted tech terms (`core/KeywordStore.js`) — anything else is rejected with inline feedback naming the invalid terms, no free-text/junk categories reaching the scoring engine
+- One-click reset back to the default 7-category system
+- **"No filter" mode**: show every crawled job regardless of any keyword match, letting Stage 2 (LLM) — or your own eyes — be the only judge
+- Persisted server-side (`data/keywords.json`) and takes effect on the next crawl
+
+---
+
+### 📄 Job Details Panel
+- Click the **?** icon on any table row to slide in a details panel (50% width) from the right
+- Shows the full job record: company, org, city, category, level, tags, score, dates
+- Shows the full job description where the source API provides one (Bechtle, Vector, Stihl)
+- Shows the LLM's one-line reasoning for the score, when Stage 2 ran for that job
+- Persisted in the database (`description`/`reasoning` columns) — available after a page reload, not just during the live crawl that found it
+
+---
+
+### 🗄️ Data Management
+- Live database connection badge in the header — pulsing green when SQL Server is reachable, red when not, rechecked every 30 seconds
+- Delete individual job entries directly from the table (trash icon per row)
+- "Alle löschen" button clears the entire table from the UI — no more manual `TRUNCATE TABLE` in SSMS
+- Both actions ask for confirmation before executing
 
 ---
 
@@ -174,10 +201,17 @@ After each scheduled crawl run, ThesisRadar automatically sends an email summary
 │  GET  /api/history     All jobs from DB                         │
 │  GET  /api/companies   Active crawler list                      │
 │  GET  /api/geocache    City coordinates                         │
+│  GET  /api/db-status   Live DB connection check (badge)         │
 │  PATCH /api/jobs/:id   Update seen / favorite / applied         │
+│  DELETE /api/jobs/:id  Delete a single job                      │
+│  DELETE /api/jobs      Delete ALL jobs (clear table)            │
 │  GET  /api/resume      Resume upload status                     │
 │  POST /api/resume      Upload + parse CV (PDF)                  │
 │  DELETE /api/resume    Remove CV → back to pure keyword scoring │
+│  GET  /api/keywords    Allowed + active custom keywords         │
+│  POST /api/keywords    Set custom keywords (allowlist-checked)  │
+│  PATCH /api/keywords   Toggle "no filter" mode                  │
+│  DELETE /api/keywords  Clear custom keywords → 7 categories     │
 │                                                                  │
 │  ┌───────────────────────────────────────────────────────────┐  │
 │  │                    Crawler Layer                          │  │
@@ -195,8 +229,8 @@ After each scheduled crawl run, ThesisRadar automatically sends an email summary
 │                         │                                        │
 │  ┌──────────────────────▼────────────────────────────────────┐  │
 │  │                     Core Modules                           │  │
-│  │  ScoreEngine · LlmScoreEngine · ResumeStore · DbExporter   │  │
-│  │  CsvExporter · GeoCache · Mailer                            │  │
+│  │  ScoreEngine · LlmScoreEngine · KeywordStore · DateFilter  │  │
+│  │  ResumeStore · DbExporter · CsvExporter · GeoCache · Mailer │  │
 │  └──────────────────────┬────────────────────────────┬────────┘  │
 └─────────────────────────┼─────────────────────────────┼───────────┘
                           │                             │ HTTP 127.0.0.1:11434
@@ -226,6 +260,7 @@ User clicks "Start"
             │
             ├─► send('status', loading)   →  progress bar appears
             ├─► crawler.fetchAll()        →  external API call
+            ├─► date filter (current year + prior year only)
             ├─► keyword scoring + dedup
             │
             ├─► for each new job:
@@ -382,6 +417,8 @@ CREATE TABLE jobs (
     org         NVARCHAR(200),
     level       NVARCHAR(100),
     category    NVARCHAR(200),
+    description NVARCHAR(MAX)  NULL,     -- full job text, only where the source API provides it
+    reasoning   NVARCHAR(500)  NULL,     -- one-line LLM rationale for the score (core/LlmScoreEngine.js)
     seen        BIT            DEFAULT 0,
     favorite    BIT            DEFAULT 0,
     applied     BIT            DEFAULT 0,
@@ -389,6 +426,8 @@ CREATE TABLE jobs (
     created_at  DATETIME       DEFAULT GETDATE()
 );
 ```
+
+`description` and `reasoning` are added automatically on startup via an idempotent migration in `core/DbExporter.js` — no manual `ALTER TABLE` needed even on an existing database.
 
 ---
 
@@ -403,16 +442,19 @@ thesis-radar/
 ├── package.json
 │
 ├── core/
-│   ├── ScoreEngine.js           ← Keyword scoring logic (relevance prefilter)
+│   ├── ScoreEngine.js           ← Keyword scoring logic (3 Stage-1 modes)
 │   ├── LlmScoreEngine.js        ← Ollama call — resume-based rescoring + fallback
+│   ├── KeywordStore.js          ← Custom keyword allowlist + "no filter" mode
+│   ├── DateFilter.js            ← Rolling current-year/prior-year posting filter
 │   ├── ResumeStore.js           ← PDF parsing, save/load data/resume.txt
 │   ├── CsvExporter.js           ← CSV read/write with BOM
-│   ├── DbExporter.js            ← SQL Server: connect/insert/load/update
+│   ├── DbExporter.js            ← SQL Server: connect/insert/load/update/delete/checkConnection
 │   ├── GeoCache.js              ← City coordinate caching
 │   └── Mailer.js                ← Email notifications (Resend)
 │
 ├── data/
-│   └── resume.txt               ← Parsed CV text (gitignored, personal data)
+│   ├── resume.txt               ← Parsed CV text (gitignored, personal data)
+│   └── keywords.json            ← Custom keyword config (gitignored, local preference)
 │
 ├── crawlers/
 │   ├── base/
@@ -441,7 +483,13 @@ thesis-radar/
 Scoring happens in two stages:
 
 ### Stage 1 — Keyword prefilter (always runs, `core/ScoreEngine.js`)
-Cheap, instant, decides whether a job is tech-relevant at all before it's ever shown or rescored.
+Cheap, instant, decides whether a job is tech-relevant at all before it's ever shown or rescored. Runs in one of three modes, checked in this order:
+
+**1. Filter disabled** (`core/KeywordStore.js`, toggled via the "no filter" checkbox in the header) — every job is treated as relevant, unconditionally. Use this if you'd rather let Stage 2 (LLM) or your own eyes do all the judging.
+
+**2. Custom keywords set** (typed into the header input, comma-separated) — replaces the 7-category system entirely. Each job is checked against your list; only terms from a fixed ~54-word allowlist are accepted, anything else is rejected with feedback naming the invalid term(s). Score = 2 points per matched keyword (capped at 10).
+
+**3. Default — the 7 fixed categories** (used when nothing above applies):
 
 | Category | Example Keywords | Score |
 |----------|-----------------|-------|
@@ -452,7 +500,7 @@ Cheap, instant, decides whether a job is tech-relevant at all before it's ever s
 | Frontend | react, vue, angular, javascript | **+1** |
 | Automotive | adas, autosar, batterie, elektro | **+1** |
 
-Fully customizable in `core/ScoreEngine.js`.
+Fully customizable in `core/ScoreEngine.js`. Whichever mode is active, changes take effect on the **next crawl** — not retroactively on jobs already in the table.
 
 ### Stage 2 — LLM rescoring (optional, `core/LlmScoreEngine.js`)
 If a resume is uploaded, every job that survived Stage 1 gets rescored by a local LLM against the actual CV
@@ -486,6 +534,7 @@ Trigger:    Daily, 08:00
   `data/resume.txt` (gitignored) and sent only to the local Ollama endpoint (`127.0.0.1:11434`) — it is
   never stored in the database, never included in email alerts, and never sent to any crawler or external API
 - Only PDF uploads are accepted (`multer` + MIME-type check), capped at 10MB
+- **Destructive endpoints** (`DELETE /api/jobs`, `DELETE /api/jobs/:id`) are only reachable from the local dashboard and always require a confirmation dialog client-side before firing — but since there's no auth, anything with network access to `127.0.0.1:3000` (i.e. only your own machine) could call them directly
 
 ---
 
@@ -515,6 +564,21 @@ This project follows a minimal-impact approach:
 
 ---
 
+## ⚠️ Limitations
+
+Honest gaps, not hidden ones:
+
+- **Thin crawl data for most companies** — only Bechtle, Vector, and Stihl expose a full job description via their APIs. The other 15 crawlers only ever see title/category/org, so Stage 2 LLM scoring for those companies is working from a title alone, which caps how accurate it can be no matter how well the prompt is tuned.
+- **Local LLM quality varies by model** — scoring accuracy depends entirely on whichever Ollama model is configured. Smaller/quantized models can still misjudge edge cases (e.g. vague catch-all postings) even with a calibrated prompt; the automatic fallback only triggers on technical failures (timeout, malformed JSON), not on a confidently wrong answer.
+- **Single-user, single-resume, single-machine** — no authentication, no multi-user support, no cloud sync. Built to run on one person's PC against their own local SQL Server/LocalDB instance.
+- **Crawlers are brittle by nature** — each one depends on a specific company's undocumented API shape or HTML structure. When a company redesigns their careers page, the crawler can silently start returning 0 results with no automatic alert — only caught by noticing the count looks off.
+- **The keyword relevance filter is a hard binary gate** — whichever Stage-1 mode is active (7 categories, custom keywords, or disabled), a job that doesn't pass it never reaches Stage 2. The LLM never gets a chance to "rescue" a job the filter rejected, unless "no filter" mode is explicitly enabled.
+- **Date filter depends on clean crawler output** — the rolling current-year/prior-year filter trusts each crawler's `date` field to be a parseable date string. A crawler that leaves it blank or malformed will have every one of its jobs silently filtered out.
+- **No automated tests** — verification has been manual (live crawls, spot-checking LLM scores, curl-testing endpoints). There's no test suite to catch regressions.
+- **Windows-centric** — the DB layer (`msnodesqlv8`, ODBC Driver 17, LocalDB) assumes Windows; porting to macOS/Linux would mean swapping the SQL Server connector for something like `pg` or `sqlite3`.
+
+---
+
 ## 💡 Potential Improvements
 
 - Fetch full job descriptions for the remaining crawlers where the source API/detail page provides them
@@ -524,7 +588,6 @@ This project follows a minimal-impact approach:
 - Deadline tracking per job (manual date input with visual warning)
 - Keyboard shortcuts for faster job triage (`F` favorite, `S` seen, `A` applied)
 - Distance filter on map ("jobs within 50km of my location")
-- Job preview panel (slide-in with full description, no tab switch)
 ---
 
 ## 📌 Status

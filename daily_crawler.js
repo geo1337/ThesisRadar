@@ -10,6 +10,7 @@ const {exec} = require('child_process');
 const {initCSV, appendCSV, loadHistory, CSV_FILE} = require('./core/CsvExporter');
 const ResumeStore = require('./core/ResumeStore');
 const {llmScoreJob} = require('./core/LlmScoreEngine');
+const {isRecentJob} = require('./core/DateFilter');
 
 const BoschCrawler = require('./crawlers/BoschCrawler');
 const MercedesCrawler = require('./crawlers/MercedesCrawler');
@@ -107,8 +108,10 @@ async function main() {
 
   for (const crawler of CRAWLERS) {
     process.stdout.write(`\n🔍 Lade ${crawler.getName()} … `);
-    const jobs = await crawler.fetchAll();
+    let jobs = await crawler.fetchAll();
     console.log(`${jobs.length} Treffer`);
+
+    jobs = jobs.filter((j) => isRecentJob(j.date));
 
     const relevant = jobs.filter((j) => j.score.relevant);
     const newJobs = relevant.filter((j) => !history.some((h) => h.title === j.title && h.url === j.url));

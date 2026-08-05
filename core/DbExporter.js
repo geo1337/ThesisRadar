@@ -14,8 +14,36 @@ async function connect() {
   if (!pool) {
     pool = await sql.connect(config);
     console.log('🗄️  SQL Server verbunden');
+    await migrate(pool);
   }
   return pool;
+}
+
+// ── Verbindungsstatus prüfen (für Frontend-Badge) ────────────────────────────
+
+async function checkConnection() {
+  try {
+    const db = await connect();
+    await db.request().query('SELECT 1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── Schema-Migration (idempotent) ────────────────────────────────────────────
+// Fügt Spalten hinzu, die neuer sind als das ursprüngliche Schema — kann
+// gefahrlos bei jedem Start erneut laufen.
+
+async function migrate(db) {
+  await db.request().query(`
+        IF COL_LENGTH('jobs', 'description') IS NULL
+            ALTER TABLE jobs ADD description NVARCHAR(MAX) NULL;
+    `);
+  await db.request().query(`
+        IF COL_LENGTH('jobs', 'reasoning') IS NULL
+            ALTER TABLE jobs ADD reasoning NVARCHAR(500) NULL;
+    `);
 }
 
 // ── Jobs einfügen (nur neue, Duplikate per URL ignorieren) ───────────────────
@@ -40,10 +68,12 @@ async function insertJobs(jobs) {
         .input('org', sql.NVarChar(200), job.org || '')
         .input('level', sql.NVarChar(100), job.level || '')
         .input('category', sql.NVarChar(200), job.category || '')
-        .input('startDate', sql.NVarChar(50), job.startDate || '').query(`
+        .input('startDate', sql.NVarChar(50), job.startDate || '')
+        .input('description', sql.NVarChar(sql.MAX), job.description || null)
+        .input('reasoning', sql.NVarChar(500), job.score?.reasoning || null).query(`
                     IF NOT EXISTS (SELECT 1 FROM jobs WHERE url = @url)
-                    INSERT INTO jobs (title, company, source, city, url, date, score, tags, logo, org, level, category, startDate)
-                    VALUES (@title, @company, @source, @city, @url, @date, @score, @tags, @logo, @org, @level, @category, @startDate)
+                    INSERT INTO jobs (title, company, source, city, url, date, score, tags, logo, org, level, category, startDate, description, reasoning)
+                    VALUES (@title, @company, @source, @city, @url, @date, @score, @tags, @logo, @org, @level, @category, @startDate, @description, @reasoning)
                 `);
       inserted++;
     } catch (err) {
@@ -63,6 +93,7 @@ async function loadHistory() {
             SELECT
                 id, title, company, source, city, url, date, score,
                 tags, logo, org, level, category, startDate,
+                description, reasoning,
                 seen, favorite, applied, applied_at, created_at
             FROM jobs
             ORDER BY created_at DESC
@@ -107,6 +138,20 @@ async function updateJobStatus(id, fields) {
   }
 }
 
+// ── Einzelnen Job löschen ─────────────────────────────────────────────────────
+
+async function deleteJob(id) {
+  const db = await connect();
+  await db.request().input('id', sql.Int, id).query('DELETE FROM jobs WHERE id = @id');
+}
+
+// ── Alle Jobs löschen ─────────────────────────────────────────────────────────
+
+async function deleteAllJobs() {
+  const db = await connect();
+  await db.request().query('TRUNCATE TABLE jobs');
+}
+
 // ── Helper ───────────────────────────────────────────────────────────────────
 
 function tryParseJSON(str, fallback) {
@@ -117,4 +162,4 @@ function tryParseJSON(str, fallback) {
   }
 }
 
-module.exports = {connect, insertJobs, loadHistory, updateJobStatus};
+module.exports = {connect, insertJobs, loadHistory, updateJobStatus, checkConnection, deleteJob, deleteAllJobs};

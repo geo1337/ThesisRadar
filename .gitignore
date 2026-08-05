@@ -5,7 +5,7 @@ node_modules/
 .env
 
 # Crawler implementations (company-specific endpoints)
-crawlers/
+crawlers/*
 !crawlers/base/
  
 # Company assets
@@ -17,6 +17,9 @@ geo_cache.json
 
 # Lebenslauf (personenbezogene Daten)
 data/resume.txt
+
+# Individuelle Scoring-Keywords (lokale Nutzereinstellung)
+data/keywords.json
 
 # Logs
 *.log

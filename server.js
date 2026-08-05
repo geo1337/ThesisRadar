@@ -25,12 +25,14 @@ const ArbeitsagenturCrawler = require('./crawlers/ArbeitsagenturCrawler');
 const DaimlerTruckCrawler  = require('./crawlers/DaimlerTruckCrawler');
 const SiemensCrawler       = require('./crawlers/SiemensCrawler');
 const StihlCrawler         = require('./crawlers/StihlCrawler');
-const { connect, insertJobs, loadHistory } = require('./core/DbExporter');
+const { connect, insertJobs, loadHistory, checkConnection, deleteJob, deleteAllJobs } = require('./core/DbExporter');
 const { geocodeAllCities, getAllCoords }   = require('./core/GeoCache');
 const sql = require('mssql/msnodesqlv8');
 const { sendJobAlert } = require('./core/Mailer');
 const ResumeStore = require('./core/ResumeStore');
 const { llmScoreJob } = require('./core/LlmScoreEngine');
+const KeywordStore = require('./core/KeywordStore');
+const { isRecentJob } = require('./core/DateFilter');
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
@@ -103,6 +105,8 @@ app.get('/api/stream', async (req, res) => {
             }
 
             totalJobs += jobs.length;
+
+            jobs = jobs.filter(j => isRecentJob(j.date));
 
             const relevant = jobs.filter(j => j.score.relevant);
             const newJobs  = relevant
@@ -238,6 +242,42 @@ app.delete('/api/resume', (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+// GET /api/keywords — erlaubte + aktuell aktive eigene Keywords
+// ══════════════════════════════════════════════════════════════════════════
+app.get('/api/keywords', (req, res) => {
+    res.json({
+        allowed:        KeywordStore.getAllowedKeywords(),
+        active:         KeywordStore.loadCustomKeywords(),
+        filterDisabled: KeywordStore.isFilterDisabled()
+    });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// POST /api/keywords — eigene Keywords setzen (ersetzt die 7 Kategorien)
+// ══════════════════════════════════════════════════════════════════════════
+app.post('/api/keywords', (req, res) => {
+    const keywords = Array.isArray(req.body.keywords) ? req.body.keywords : [];
+    const { saved, rejected } = KeywordStore.saveCustomKeywords(keywords);
+    res.json({ success: true, saved, rejected });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// DELETE /api/keywords — eigene Keywords entfernen (zurück auf 7-Kategorien-System)
+// ══════════════════════════════════════════════════════════════════════════
+app.delete('/api/keywords', (req, res) => {
+    KeywordStore.clearCustomKeywords();
+    res.json({ success: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// PATCH /api/keywords — Stage-1-Filter komplett an/aus (alle Stellen anzeigen)
+// ══════════════════════════════════════════════════════════════════════════
+app.patch('/api/keywords', (req, res) => {
+    KeywordStore.setFilterDisabled(!!req.body.filterDisabled);
+    res.json({ success: true, filterDisabled: KeywordStore.isFilterDisabled() });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
 // PATCH /api/jobs/:id — seen, favorite, applied updaten
 // ══════════════════════════════════════════════════════════════════════════
 app.patch('/api/jobs/:id', async (req, res) => {
@@ -271,6 +311,40 @@ app.patch('/api/jobs/:id', async (req, res) => {
         res.json({ success: true });
     } catch (err) {
         console.error('PATCH /api/jobs error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// GET /api/db-status — Datenbankverbindung live prüfen (Frontend-Badge)
+// ══════════════════════════════════════════════════════════════════════════
+app.get('/api/db-status', async (req, res) => {
+    const connected = await checkConnection();
+    res.json({ connected });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// DELETE /api/jobs/:id — einzelnen Job löschen
+// ══════════════════════════════════════════════════════════════════════════
+app.delete('/api/jobs/:id', async (req, res) => {
+    try {
+        await deleteJob(parseInt(req.params.id));
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /api/jobs/:id error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// DELETE /api/jobs — ALLE Jobs löschen (TRUNCATE TABLE)
+// ══════════════════════════════════════════════════════════════════════════
+app.delete('/api/jobs', async (req, res) => {
+    try {
+        await deleteAllJobs();
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /api/jobs error:', err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });

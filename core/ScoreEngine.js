@@ -1,3 +1,5 @@
+const KeywordStore = require('./KeywordStore');
+
 const KEYWORDS = {
     ki:           ['ki', 'ai', 'machine learning', 'deep learning', 'data science', 'ml', 'neural', 'llm', 'nlp',
                    'computer vision', 'reinforcement learning', 'generative', 'transformer', 'pytorch', 'tensorflow',
@@ -47,6 +49,27 @@ const COMPILED = Object.fromEntries(
 
 function scoreJob(title, extra = '') {
     const text = `${title} ${extra}`.toLowerCase();
+
+    // Stage-1-Filter komplett deaktiviert → jeder Job gilt als relevant,
+    // Bewertung liegt bei Stage 2 (LLM) bzw. entfällt ohne Lebenslauf
+    if (KeywordStore.isFilterDisabled()) {
+        return { relevant: true, categories: [], score: 0, confidence: 0 };
+    }
+
+    // Eigene Keywords gesetzt → ersetzen das 7-Kategorien-System komplett
+    const custom = KeywordStore.loadCustomKeywords();
+    if (custom.length > 0) {
+        const matched = custom.filter(k => text.includes(k));
+        const score   = Math.min(10, matched.length * 2);
+
+        return {
+            relevant:   matched.length > 0,
+            categories: matched,
+            score,
+            confidence: Math.min(100, score * 10)
+        };
+    }
+
     const tech = [];
     let score = 0;
 

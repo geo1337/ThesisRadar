@@ -51,8 +51,10 @@
       /* ── HEADER ── */
       header {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
+        row-gap: 12px;
         padding: 20px 32px;
         border-bottom: 1px solid var(--border);
         background: var(--surface);
@@ -69,6 +71,8 @@
         display: flex;
         align-items: center;
         gap: 10px;
+        order: 1;
+        flex-shrink: 0;
       }
 
       .logo-dot {
@@ -90,10 +94,158 @@
         }
       }
 
+      @keyframes pulse-green {
+        0%,
+        100% {
+          box-shadow: 0 0 6px var(--green);
+        }
+        50% {
+          box-shadow: 0 0 14px var(--green);
+        }
+      }
+
+      .db-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: 14px;
+        padding-left: 14px;
+        border-left: 1px solid var(--border2);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--muted);
+      }
+
+      .db-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+        transition: background 0.2s;
+      }
+
+      .db-status-dot.connected {
+        background: var(--green);
+        animation: pulse-green 2s infinite;
+      }
+
+      .db-status-dot.disconnected {
+        background: var(--red);
+      }
+
       .header-actions {
         display: flex;
         gap: 10px;
         align-items: center;
+        order: 2;
+        flex-shrink: 0;
+      }
+
+      .keyword-bar {
+        order: 3;
+        flex-basis: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        padding: 0;
+      }
+
+      .keyword-input-wrap.filter-off {
+        opacity: 0.35;
+        pointer-events: none;
+      }
+
+      .keyword-nofilter-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--muted);
+        cursor: pointer;
+        user-select: none;
+        padding: 4px 0 8px;
+      }
+
+      .keyword-nofilter-label input[type="checkbox"] {
+        width: 15px;
+        height: 15px;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+
+      .keyword-input-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        max-width: 800px;
+      }
+
+      #keywordInput {
+        flex: 1;
+        min-width: 0;
+        background: var(--bg);
+        border: 1px solid var(--border2);
+        border-radius: 6px;
+        padding: 8px 12px;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      #keywordInput:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      #keywordInput.invalid {
+        border-color: var(--red);
+      }
+
+      .keyword-icon-btn {
+        background: transparent;
+        border: 1px solid var(--border2);
+        border-radius: 6px;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 8px 10px;
+        flex-shrink: 0;
+        transition: all 0.15s;
+      }
+
+      .keyword-icon-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent2);
+      }
+
+      .keyword-icon-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+
+      .keyword-icon-btn:disabled:hover {
+        border-color: var(--border2);
+        color: var(--muted);
+      }
+
+      .keyword-status {
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 260px;
+      }
+
+      .keyword-status.warn {
+        color: var(--red);
+      }
+
+      .keyword-status.ok {
+        color: var(--green);
       }
 
       .btn {
@@ -127,6 +279,17 @@
       .btn-primary:hover {
         background: var(--accent2);
         border-color: var(--accent2);
+        color: #fff;
+      }
+
+      .btn-danger {
+        color: var(--red);
+        border-color: var(--red);
+      }
+
+      .btn-danger:hover {
+        background: var(--red);
+        border-color: var(--red);
         color: #fff;
       }
 
@@ -216,6 +379,172 @@
         font-size: 12px;
         color: var(--text);
         width: 100%;
+      }
+
+      .details-btn {
+        background: transparent;
+        border: 1px solid var(--border2);
+        border-radius: 4px;
+        padding: 3px 6px;
+        cursor: pointer;
+        color: var(--muted);
+        transition: all 0.15s;
+      }
+
+      .details-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent2);
+      }
+
+      .delete-btn:hover {
+        border-color: var(--red);
+        color: var(--red);
+      }
+
+      .details-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1100;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+      }
+
+      .details-overlay.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .details-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 50%;
+        min-width: 420px;
+        height: 100vh;
+        background: var(--surface);
+        border-left: 1px solid var(--border2);
+        box-shadow: -8px 0 32px rgba(0, 0, 0, 0.35);
+        transform: translateX(100%);
+        transition: transform 0.28s ease;
+        z-index: 1101;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .details-overlay.open .details-panel {
+        transform: translateX(0);
+      }
+
+      .details-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 24px 28px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .details-header h2 {
+        margin: 0 0 6px;
+        font-size: 18px;
+        color: var(--text);
+        line-height: 1.35;
+      }
+
+      .details-header .job-meta {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .details-close {
+        background: transparent;
+        border: 1px solid var(--border2);
+        border-radius: 6px;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 6px 10px;
+        flex-shrink: 0;
+      }
+
+      .details-close:hover {
+        border-color: var(--accent);
+        color: var(--accent2);
+      }
+
+      .details-body {
+        padding: 24px 28px;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .details-section {
+        margin-bottom: 24px;
+      }
+
+      .details-section h3 {
+        margin: 0 0 10px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+
+      .details-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 20px;
+      }
+
+      .details-field label {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 2px;
+      }
+
+      .details-field div {
+        font-size: 13px;
+        color: var(--text);
+      }
+
+      .details-description,
+      .details-reasoning {
+        font-size: 13px;
+        line-height: 1.6;
+        color: var(--text);
+        white-space: pre-wrap;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 16px;
+      }
+
+      .details-reasoning {
+        border-left: 3px solid var(--accent);
+      }
+
+      .details-empty-note {
+        color: var(--muted);
+        font-size: 12px;
+        font-style: italic;
+      }
+
+      .details-apply-btn {
+        display: inline-block;
+        margin-top: 4px;
+        background: var(--accent);
+        color: #fff;
+        text-decoration: none;
+        padding: 10px 18px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .details-apply-btn:hover {
+        background: var(--accent2);
       }
 
       /* ── STATS BAR ── */
@@ -1157,11 +1486,28 @@
       <div class="logo">
         <div class="logo-dot"></div>
         ThesisRadar
+        <div class="db-status" id="dbStatus" title="Datenbankverbindung wird geprüft…">
+          <span class="db-status-dot" id="dbStatusDot"></span>
+          <span>DB</span>
+        </div>
+      </div>
+      <div class="keyword-bar">
+        <div class="keyword-input-wrap">
+          <input type="text" id="keywordInput" placeholder="Eigene Keywords, kommagetrennt (z.B. react, docker, python)" oninput="updateKeywordApplyState()" onkeydown="if (event.key === 'Enter') applyKeywords()" />
+          <button class="keyword-icon-btn" id="keywordApplyBtn" onclick="applyKeywords()" title="Keywords anwenden" disabled><i class="fa-solid fa-check"></i></button>
+          <button class="keyword-icon-btn" id="keywordResetBtn" onclick="resetKeywords()" title="Zurück auf Standard-Kategorien" disabled><i class="fa-solid fa-rotate-left"></i></button>
+          <span class="keyword-status" id="keywordStatus"></span>
+        </div>
+        <label class="keyword-nofilter-label">
+          <input type="checkbox" id="noKeywordFilterCheckbox" onchange="toggleNoKeywordFilter()" />
+          Kein Keyword-Filter — alle gefundenen Stellen anzeigen
+        </label>
       </div>
       <div class="header-actions">
         <button class="btn" onclick="openResumeModal()"><span class="resume-badge" id="resumeBadge"></span>&nbsp;<i class="fa-solid fa-file-pdf"></i>Lebenslauf</button>
         <button class="btn" onclick="resetSeen()"><i class="fa-solid fa-circle-dot"></i>Alle als ungelesen</button>
         <button class="btn" onclick="exportCSV()"><i class="fa-solid fa-download"></i> CSV Export</button>
+        <button class="btn btn-danger" onclick="deleteAllJobsConfirm()"><i class="fa-solid fa-trash"></i>Alle löschen</button>
         <button class="btn btn-primary" onclick="startCrawl()" id="startCrawlBtn" disabled title="Zuerst Lebenslauf hochladen"><i class="fa-solid fa-play"></i>Starten</button>
       </div>
     </header>
@@ -1178,6 +1524,20 @@
           <button class="btn" onclick="closeResumeModal()">Schließen</button>
           <button class="btn btn-primary" onclick="uploadResume()">Hochladen</button>
         </div>
+      </div>
+    </div>
+
+    <!-- JOB DETAILS PANEL -->
+    <div class="details-overlay" id="detailsOverlay" onclick="if (event.target === this) closeDetailsPanel()">
+      <div class="details-panel">
+        <div class="details-header">
+          <div>
+            <h2 id="detailsTitle">—</h2>
+            <div class="job-meta" id="detailsMeta"></div>
+          </div>
+          <button class="details-close" onclick="closeDetailsPanel()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="details-body" id="detailsBody"></div>
       </div>
     </div>
 
@@ -1296,6 +1656,8 @@
             <th onclick="sortBy('score')">Score <span class="sort-icon">↕</span></th>
             <th onclick="sortBy('date')">Datum <span class="sort-icon">↕</span></th>
             <th style="width: 50px; text-align: center" title="Beworben">Beworben</th>
+            <th style="width: 32px"></th>
+            <th style="width: 32px"></th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -1371,9 +1733,28 @@
         await loadCompanies();
         await loadHistory();
         await refreshResumeStatus();
+        await refreshKeywordStatus();
+        await checkDbStatus();
+        setInterval(checkDbStatus, 30000);
         updateStats();
         document.getElementById('statFav').textContent = state.jobs.filter((j) => j.favorite).length;
         document.getElementById('footerTime').textContent = 'Zuletzt: ' + new Date().toLocaleString('de-DE');
+      }
+
+      async function checkDbStatus() {
+        const dot     = document.getElementById('dbStatusDot');
+        const wrap    = document.getElementById('dbStatus');
+        try {
+          const res  = await fetch(`${API}/api/db-status`);
+          const data = await res.json();
+          dot.classList.toggle('connected', !!data.connected);
+          dot.classList.toggle('disconnected', !data.connected);
+          wrap.title = data.connected ? 'Datenbank verbunden' : 'Datenbank nicht erreichbar';
+        } catch {
+          dot.classList.remove('connected');
+          dot.classList.add('disconnected');
+          wrap.title = 'Server nicht erreichbar';
+        }
       }
 
       // ── COMPANIES aus Server laden ─────────────────────────────────────────────
@@ -1793,7 +2174,12 @@
       <td style="text-align:center">
         <button class="applied-btn ${j.applied ? 'active' : ''}" onclick="toggleApplied('${j.id}', this)" title="${j.applied ? 'Als beworben markiert' : 'Als beworben markieren'}"><i class="fa-solid fa-paper-plane"></i></button>
       </td>
- 
+      <td style="text-align:center">
+        <button class="details-btn" onclick="openDetailsPanel('${j.id}')" title="Details anzeigen"><i class="fa-solid fa-question"></i></button>
+      </td>
+      <td style="text-align:center">
+        <button class="details-btn delete-btn" onclick="deleteJobRow('${j.id}')" title="Eintrag löschen"><i class="fa-solid fa-trash"></i></button>
+      </td>
     </tr>`;
           })
           .join('');
@@ -1973,6 +2359,97 @@
         try {
           await fetch(`${API}/api/resume`, {method: 'DELETE'});
           await refreshResumeStatus();
+        } catch {
+          alert('⚠ Server nicht erreichbar');
+        }
+      }
+
+      // ── EIGENE SCORING-KEYWORDS ────────────────────────────────────────────────
+
+      function updateKeywordApplyState() {
+        const input = document.getElementById('keywordInput');
+        const btn   = document.getElementById('keywordApplyBtn');
+        btn.disabled = input.value.trim().length === 0;
+      }
+
+      function setKeywordInputGroupEnabled(enabled) {
+        document.querySelector('.keyword-input-wrap').classList.toggle('filter-off', !enabled);
+      }
+
+      async function refreshKeywordStatus() {
+        const input  = document.getElementById('keywordInput');
+        const status = document.getElementById('keywordStatus');
+        try {
+          const res  = await fetch(`${API}/api/keywords`);
+          const data = await res.json();
+          input.value = (data.active || []).join(', ');
+          input.classList.remove('invalid');
+          status.className = 'keyword-status' + (data.active?.length ? ' ok' : '');
+          status.textContent = data.active?.length ? `✓ ${data.active.length} aktiv (ersetzt Kategorien)` : '';
+          document.getElementById('keywordResetBtn').disabled = !data.active?.length;
+          document.getElementById('noKeywordFilterCheckbox').checked = !!data.filterDisabled;
+          setKeywordInputGroupEnabled(!data.filterDisabled);
+        } catch {
+          status.textContent = '⚠ Server nicht erreichbar';
+        }
+        updateKeywordApplyState();
+      }
+
+      async function toggleNoKeywordFilter() {
+        const checkbox = document.getElementById('noKeywordFilterCheckbox');
+        const disabled = checkbox.checked;
+        try {
+          await fetch(`${API}/api/keywords`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({filterDisabled: disabled}),
+          });
+          setKeywordInputGroupEnabled(!disabled);
+        } catch {
+          checkbox.checked = !disabled;
+          alert('⚠ Server nicht erreichbar');
+        }
+      }
+
+      async function applyKeywords() {
+        const input  = document.getElementById('keywordInput');
+        const status = document.getElementById('keywordStatus');
+        const keywords = input.value.split(',').map((k) => k.trim()).filter(Boolean);
+
+        try {
+          const res  = await fetch(`${API}/api/keywords`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({keywords}),
+          });
+          const data = await res.json();
+
+          input.value = data.saved.join(', ');
+          updateKeywordApplyState();
+          document.getElementById('keywordResetBtn').disabled = data.saved.length === 0;
+
+          if (data.rejected.length > 0) {
+            input.classList.add('invalid');
+            status.className = 'keyword-status warn';
+            status.textContent = `⚠ ungültig: ${data.rejected.join(', ')}`;
+          } else {
+            input.classList.remove('invalid');
+            status.className = 'keyword-status' + (data.saved.length ? ' ok' : '');
+            status.textContent = data.saved.length ? `✓ ${data.saved.length} aktiv (ersetzt Kategorien)` : 'Zurück auf Standard-Kategorien';
+          }
+        } catch {
+          status.className = 'keyword-status warn';
+          status.textContent = '⚠ Server nicht erreichbar';
+        }
+      }
+
+      async function resetKeywords() {
+        try {
+          await fetch(`${API}/api/keywords`, {method: 'DELETE'});
+          await refreshKeywordStatus();
+          const status = document.getElementById('keywordStatus');
+          status.className = 'keyword-status';
+          status.textContent = 'Zurückgesetzt auf Standard-Kategorien';
         } catch {
           alert('⚠ Server nicht erreichbar');
         }
@@ -2346,6 +2823,111 @@
           console.error('toggleApplied fehlgeschlagen:', e);
         }
       }
+
+      // ── LÖSCHEN ────────────────────────────────────────────────────────────────
+
+      async function deleteJobRow(id) {
+        const job = state.jobs.find((j) => String(j.id) === String(id));
+        if (!job) return;
+
+        if (job.id > SQL_INT_MAX) {
+          alert('Dieser Job wird gerade gecrawlt und ist noch nicht in der DB — warte bis der Crawl fertig ist.');
+          return;
+        }
+
+        if (!confirm(`"${job.title}" wirklich löschen?`)) return;
+
+        try {
+          await fetch(`${API}/api/jobs/${id}`, {method: 'DELETE'});
+          state.jobs = state.jobs.filter((j) => String(j.id) !== String(id));
+          applyFiltersWithPage();
+          updateStats();
+        } catch {
+          alert('⚠ Löschen fehlgeschlagen — Server nicht erreichbar');
+        }
+      }
+
+      async function deleteAllJobsConfirm() {
+        if (!confirm('ALLE Einträge unwiderruflich löschen? Das kann nicht rückgängig gemacht werden.')) return;
+
+        try {
+          await fetch(`${API}/api/jobs`, {method: 'DELETE'});
+          state.jobs = [];
+          applyFiltersWithPage();
+          updateStats();
+        } catch {
+          alert('⚠ Löschen fehlgeschlagen — Server nicht erreichbar');
+        }
+      }
+
+      // ── DETAILS PANEL ────────────────────────────────────────────────────────────
+
+      function escapeHtml(str) {
+        return String(str ?? '').replace(/[&<>"']/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+      }
+
+      function detailsField(label, value) {
+        if (!value) return '';
+        return `<div class="details-field"><label>${escapeHtml(label)}</label><div>${escapeHtml(value)}</div></div>`;
+      }
+
+      function openDetailsPanel(id) {
+        const job = state.jobs.find((j) => String(j.id) === String(id));
+        if (!job) return;
+
+        const score = job.score?.score ?? job.score ?? 0;
+        const tags = job.tags || job.score?.categories || [];
+        const reasoning = job.reasoning || job.score?.reasoning || '';
+
+        document.getElementById('detailsTitle').textContent = job.title || '—';
+        document.getElementById('detailsMeta').textContent = [job.company, job.city, job.category].filter(Boolean).join(' · ');
+
+        document.getElementById('detailsBody').innerHTML = `
+          <div class="details-section">
+            <h3>Übersicht</h3>
+            <div class="details-grid">
+              ${detailsField('Firma', job.company)}
+              ${detailsField('Organisation', job.org)}
+              ${detailsField('Stadt', job.city)}
+              ${detailsField('Kategorie', job.category)}
+              ${detailsField('Level', job.level)}
+              ${detailsField('Score', String(score))}
+              ${detailsField('Tags', tags.join(', '))}
+              ${detailsField('Datum', job.date)}
+              ${detailsField('Startdatum', job.startDate)}
+              ${detailsField('Quelle', job.source)}
+            </div>
+          </div>
+
+          <div class="details-section">
+            <h3>Stellenbeschreibung</h3>
+            ${job.description
+              ? `<div class="details-description">${escapeHtml(job.description)}</div>`
+              : `<div class="details-empty-note">Für diese Stelle liegt keine volle Beschreibung vor — nur Titel/Kategorie waren beim Crawlen verfügbar.</div>`}
+          </div>
+
+          <div class="details-section">
+            <h3>LLM-Einschätzung</h3>
+            ${reasoning
+              ? `<div class="details-reasoning">${escapeHtml(reasoning)}</div>`
+              : `<div class="details-empty-note">Kein LLM-Rescoring für diese Stelle — entweder kein Lebenslauf hochgeladen, oder der Keyword-Score wurde als Fallback verwendet.</div>`}
+          </div>
+
+          <div class="details-section">
+            <a class="details-apply-btn" href="${job.url || '#'}" target="_blank" onclick="markSeen('${job.id}')">Zur Stelle →</a>
+          </div>
+        `;
+
+        document.getElementById('detailsOverlay').classList.add('open');
+      }
+
+      function closeDetailsPanel() {
+        document.getElementById('detailsOverlay').classList.remove('open');
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeDetailsPanel();
+      });
     </script>
   </body>
 </html>
