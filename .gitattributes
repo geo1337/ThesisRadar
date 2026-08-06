@@ -1,0 +1,2 @@
+# Exclude HTML from GitHub's language statistics so the repo shows as JavaScript
+*.html linguist-detectable=false
