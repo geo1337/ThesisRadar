@@ -184,6 +184,8 @@ After each scheduled crawl run, ThesisRadar automatically sends an email summary
 ## 🏗️ Architecture
 
 ```
+![Architecture](docs/thesisradar_architecture_detailed.svg)
+
 ┌─────────────────────────────────────────────────────────────────┐
 │                          Browser                                 │
 │                        index.html                                │
