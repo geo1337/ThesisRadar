@@ -552,7 +552,7 @@ This project is intended solely for personal research and job discovery purposes
 - Requests are performed at very low frequency, comparable to normal browsing behavior
 - No data is redistributed, published, or commercialized
 
-> ⚠️ Individual website terms may restrict automated access. This project is not affiliated with any referenced companies. Usage is at your own responsibility.
+> ⚠️ Individual website terms may restrict automated access.
 
 ---
 
